@@ -1,13 +1,19 @@
-use std::{env, process::exit};
-use tokio::{sync, time, task};
-use futures;
-struct Philo{
+use std::{
+    env,
+    io::SeekFrom,
+    process::exit,
+    sync::{Arc, MutexGuard},
+};
+use tokio::{self};
+// use mutex
+use std::sync::Mutex;
+
+struct Philo {
     n: u8,
 
     times: u32,
     t_eat: u64,
     t_sleep: u64,
-    t_think: u64,
 }
 
 impl Philo {
@@ -18,23 +24,23 @@ impl Philo {
             times: 0,
             t_eat: table.t_eat,
             t_sleep: table.t_sleep,
-            t_think: 0,
         }
     }
 
-    async fn eat(&self){
+    async fn eat(&mut self) {
         println!("{} is eating", self.n);
         tokio::time::sleep(tokio::time::Duration::from_millis(self.t_eat)).await;
         println!("{} is done eating", self.n);
+        self.times += 1;
     }
 
-    async fn sleep(&self){
+    async fn sleep(&self) {
         println!("{} is sleeping", self.n);
         tokio::time::sleep(tokio::time::Duration::from_millis(self.t_sleep)).await;
         println!("{} is done sleeping", self.n);
     }
 
-    fn think(&self){
+    fn think(&self) {
         println!("{} is thinking", self.n);
         println!("{} is done thinking", self.n);
     }
@@ -46,7 +52,7 @@ struct Table {
     t_sleep: u64,
     t_eat: u64,
     n_times: u32, // number of times to eat (infinite if not provided)
-    n_full: u32, // number of philosophers that have eaten all times
+    n_full: u32,  // number of philosophers that have eaten all times
 }
 
 impl Table {
@@ -72,53 +78,60 @@ impl Table {
     }
 }
 
-async fn philo(mut table: Table, n: u32)  {
-    let mut p = Philo::new(n as u8, &table);
+async fn philo(table: Arc<Mutex<Table>>, n: u32) {
+    let mut p = Philo::new(n as u8, &table.lock().unwrap());
     loop {
         p.sleep().await;
         p.eat().await;
         p.think();
-        if p.times == table.n_times {
-            p.times = 0;
-            table.n_full += 1;
+        {
+            let mut lock: MutexGuard<Table> = table.lock().unwrap();
+            if p.times == lock.n_times {
+                lock.n_full += 1;
+                if lock.n_full == lock.n.into() {
+                    println!("All philosophers have eaten {} times", lock.n_times);
+                    exit(0);
+                }
+            }
         }
     }
 }
-
 
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 5 || args.len() > 6 {
-        println!("usage: {} <number of philosophers> <t_die> <t_eat> <t_sleep> [n_times!]", args[0]);
+        println!(
+            "usage: {} <number of philosophers> <t_die> <t_eat> <t_sleep> [n_times!]",
+            args[0]
+        );
         exit(1);
     }
     for arg in &args[1..] {
         if arg.parse::<u32>().is_err() || arg.parse::<u32>().unwrap() < 1 {
-            println!("usage: {} <number of philosophers> <t_die> <t_eat> <t_sleep> [n_times]", args[0]);
+            println!(
+                "usage: {} <number of philosophers> <t_die> <t_eat> <t_sleep> [n_times]",
+                args[0]
+            );
             exit(1);
         }
     }
-    let table = Table::new(
+    let mut table = Arc::new(Mutex::new(Table::new(
         args[1].parse().unwrap(),
-        if args.len() == 6 { args[5].parse().unwrap() } else { std::u32::MAX },
+        if args.len() == 6 {
+            args[5].parse().unwrap()
+        } else {
+            std::u32::MAX
+        },
         args[2].parse().unwrap(),
         args[3].parse().unwrap(),
         args[4].parse().unwrap(),
-    );
+    )));
     let mut handles = vec![];
-    for i in 0..table.n {
-        let table = table.clone();
-        let i = i;
-        handles.push(task::spawn(async move {
-            philo(table,u32::from(i)).await;
-        }));
-
+    for i in 0..table.lock().unwrap().n {
+        handles.push(tokio::spawn(philo(table.clone(), i.into())));
     }
     for handle in handles {
         handle.await.unwrap();
     }
-
-
-    println!("{} philosophers, {} seconds to die, {} seconds to eat, {} seconds to sleep", args[1], table.t_die, table.t_eat, table.t_sleep);
 }
