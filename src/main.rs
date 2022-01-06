@@ -41,7 +41,7 @@ impl Philo {
     }
 
     async fn sleep(&self) {
-        println!("{}\t{} is sleeping",self.get_time() ,self.n + 1);
+        println!("{}\t{} is sleeping", self.get_time(), self.n + 1);
         tokio::time::sleep(tokio::time::Duration::from_millis(self.t_sleep)).await;
     }
 
@@ -86,7 +86,7 @@ async fn philo(table: Arc<Mutex<Table>>, n: u32) {
                     println!("All philosophers have eaten {} times", lock.n_times);
                     return;
                 }
-               return;
+                return;
             }
         }
     }
