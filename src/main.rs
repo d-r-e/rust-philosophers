@@ -65,16 +65,6 @@ impl Table {
             n_full: 0,
         }
     }
-    fn clone(&self) -> Table {
-        Table {
-            n: self.n,
-            t_die: self.t_die,
-            t_sleep: self.t_sleep,
-            t_eat: self.t_eat,
-            n_times: self.n_times,
-            n_full: self.n_full,
-        }
-    }
 }
 
 async fn philo(table: Arc<Mutex<Table>>, n: u32) {
@@ -115,7 +105,7 @@ async fn main() {
             exit(1);
         }
     }
-    let mut table = Arc::new(Mutex::new(Table::new(
+    let table = Arc::new(Mutex::new(Table::new(
         args[1].parse().unwrap(),
         if args.len() == 6 {
             args[5].parse().unwrap()
@@ -126,11 +116,11 @@ async fn main() {
         args[3].parse().unwrap(),
         args[4].parse().unwrap(),
     )));
-    let mut handles = vec![];
+    let mut philos = vec![];
     for i in 0..table.lock().unwrap().n {
-        handles.push(tokio::spawn(philo(table.clone(), i.into())));
+        philos.push(tokio::spawn(philo(table.clone(), i.into())));
     }
-    for handle in handles {
-        handle.await.unwrap();
+    for philo in philos {
+        philo.await.unwrap();
     }
 }
