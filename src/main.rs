@@ -3,45 +3,50 @@ use std::{
     process::exit,
     sync::{Arc, MutexGuard},
 };
-use tokio::{self};
+use tokio::{self, time::Instant};
 // use mutex
 use std::sync::Mutex;
 
 struct Philo {
     n: u8,
-
     times: u32,
     t_eat: u64,
     t_sleep: u64,
+    last_eat: Instant,
+    t0: Instant,
 }
 
 impl Philo {
     fn new(n: u8, table: &Table) -> Self {
         Philo {
             n,
-
+            last_eat: Instant::now(),
             times: 0,
             t_eat: table.t_eat,
             t_sleep: table.t_sleep,
+            t0: Instant::now(),
         }
     }
 
+    fn get_time(&self) -> u64 {
+        let now = Instant::now();
+        let d = now.duration_since(self.t0);
+        d.as_secs() * 1000 + d.subsec_millis() as u64
+    }
+
     async fn eat(&mut self) {
-        println!("{} is eating", self.n);
+        println!("{}\t{} is eating", self.get_time(), self.n + 1);
         tokio::time::sleep(tokio::time::Duration::from_millis(self.t_eat)).await;
-        println!("{} is done eating", self.n);
         self.times += 1;
     }
 
     async fn sleep(&self) {
-        println!("{} is sleeping", self.n);
+        println!("{}\t{} is sleeping",self.get_time() ,self.n + 1);
         tokio::time::sleep(tokio::time::Duration::from_millis(self.t_sleep)).await;
-        println!("{} is done sleeping", self.n);
     }
 
     fn think(&self) {
-        println!("{} is thinking", self.n);
-        println!("{} is done thinking", self.n);
+        println!("{}\t{} is thinking", self.get_time(), self.n + 1);
     }
 }
 
@@ -79,8 +84,9 @@ async fn philo(table: Arc<Mutex<Table>>, n: u32) {
                 lock.n_full += 1;
                 if lock.n_full == lock.n.into() {
                     println!("All philosophers have eaten {} times", lock.n_times);
-                    exit(0);
+                    return;
                 }
+               return;
             }
         }
     }
