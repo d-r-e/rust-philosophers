@@ -1,6 +1,5 @@
 use std::{
     env,
-    io::SeekFrom,
     process::exit,
     sync::{Arc, MutexGuard},
 };
